@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from "sonner";
 
@@ -38,12 +37,59 @@ interface EditorContextProps {
   updateProjectName: (name: string) => void;
 }
 
-const defaultCode = `// Kodunuzu buraya yazın
-function merhaba() {
-  return "Merhaba, Dünya!";
-}
-
-console.log(merhaba());`;
+const defaultCode = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hello World</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      padding: 2rem;
+      max-width: 800px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    h1 { color: #333; }
+    .container {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 2rem;
+      margin: 2rem 0;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    button {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      padding: 0.5rem 1.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    button:hover {
+      background: #4338ca;
+    }
+  </style>
+</head>
+<body>
+  <h1>Hello World!</h1>
+  <div class="container">
+    <p>This is a live preview of your HTML code. Try editing it to see changes in real-time.</p>
+    <button onclick="showMessage()">Click me</button>
+  </div>
+  
+  <script>
+    function showMessage() {
+      alert('Button clicked!');
+      console.log('Button was clicked at: ' + new Date().toLocaleTimeString());
+    }
+    
+    console.log('Page loaded successfully!');
+  </script>
+</body>
+</html>
+`;
 
 const defaultProjectFiles: FileStructure[] = [
   {
@@ -73,7 +119,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [output, setOutput] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [apiKey, setApiKey] = useState<string>('');
-  const [language, setLanguage] = useState<string>('javascript');
+  const [language, setLanguage] = useState<string>('html');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [activeFile, setActiveFile] = useState<string>('');
   const [openFiles, setOpenFiles] = useState<string[]>([]);
@@ -82,14 +128,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [isFileExplorerOpen, setIsFileExplorerOpen] = useState<boolean>(true);
   const [projectName, setProjectName] = useState<string>('Untitled');
   
-  // File management functions
   const handleFileSelect = (filePath: string) => {
     setActiveFile(filePath);
     if (!openFiles.includes(filePath)) {
       setOpenFiles([...openFiles, filePath]);
     }
     
-    // Find file content and set it as current code
     const findFileContent = (files: FileStructure[], path: string): string | undefined => {
       const pathParts = path.split('/');
       const fileName = pathParts.pop();
@@ -111,7 +155,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     if (fileContent) {
       setCode(fileContent);
       
-      // Set language based on file extension
       const extension = filePath.split('.').pop()?.toLowerCase();
       if (extension) {
         const extensionToLanguage: Record<string, string> = {
@@ -139,10 +182,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     }
   };
   
-  // Function to create a new file
   const createNewFile = () => {
-    // Here you would implement a dialog to get filename and path
-    // For simplicity, we'll just add a default new file
     const newFileName = 'newFile.js';
     setProjectFiles([...projectFiles, {
       name: newFileName,
@@ -159,10 +199,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     toast.success("Yeni dosya oluşturuldu");
   };
   
-  // Function to create a new folder
   const createNewFolder = () => {
-    // Here you would implement a dialog to get folder name
-    // For simplicity, we'll just add a default new folder
     setProjectFiles([...projectFiles, {
       name: 'newFolder',
       type: 'folder',
@@ -172,7 +209,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     toast.success("Yeni klasör oluşturuldu");
   };
   
-  // Function to toggle folder expand state
   const toggleFolderExpand = (folderPath: string) => {
     if (expandedFolders.includes(folderPath)) {
       setExpandedFolders(expandedFolders.filter(folder => folder !== folderPath));
@@ -181,19 +217,16 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     }
   };
   
-  // Function to toggle file explorer visibility
   const toggleFileExplorer = () => {
     setIsFileExplorerOpen(!isFileExplorerOpen);
   };
   
-  // Update project name
   const updateProjectName = (name: string) => {
     setProjectName(name);
     localStorage.setItem('projectName', name);
     toast.success("Proje adı güncellendi");
   };
 
-  // Load saved settings from localStorage
   useEffect(() => {
     const savedCode = localStorage.getItem('code');
     const savedApiKey = localStorage.getItem('apiKey');
@@ -210,7 +243,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     if (savedProjectName) setProjectName(savedProjectName);
   }, []);
 
-  // Toggle between light and dark theme
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
@@ -218,12 +250,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     document.documentElement.className = newTheme;
   };
 
-  // Apply theme when component mounts and when theme changes
   useEffect(() => {
     document.documentElement.className = theme;
   }, [theme]);
 
-  // Save the current code to localStorage
   const saveCode = () => {
     localStorage.setItem('code', code);
     localStorage.setItem('language', language);
@@ -231,7 +261,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     toast.success("Kod başarıyla kaydedildi");
   };
 
-  // Load code from localStorage
   const loadCode = () => {
     const savedCode = localStorage.getItem('code');
     if (savedCode) {
@@ -242,7 +271,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Function to run the code
   const runCode = async () => {
     if (!code.trim()) {
       toast.error("Lütfen önce biraz kod yazın");
@@ -252,16 +280,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     setIsProcessing(true);
     
     try {
-      // Simulate processing for demo (will integrate with Ollama later)
       setTimeout(() => {
-        // Simple JavaScript execution for demo purposes
         let result;
         
         try {
-          // Use Function constructor to evaluate code safely
           const executeCode = new Function(code);
           
-          // Capture console.log output
           const originalConsoleLog = console.log;
           const logs: string[] = [];
           
@@ -270,13 +294,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             originalConsoleLog(...args);
           };
           
-          // Execute the code
           result = executeCode();
           
-          // Restore original console.log
           console.log = originalConsoleLog;
           
-          // Set output to logged messages or result
           setOutput(logs.length > 0 ? logs.join('\n') : String(result || ''));
           toast.success("Kod başarıyla çalıştırıldı");
         } catch (error) {

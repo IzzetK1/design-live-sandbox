@@ -14,50 +14,63 @@ const ResultPanel: React.FC = () => {
 
   // Update iframe content
   useEffect(() => {
-    if ((language === 'html' || language === 'jsx' || language === 'tsx' || language === 'javascript') && iframeRef.current) {
-      const iframe = iframeRef.current;
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      
-      if (iframeDoc) {
-        iframeDoc.open();
+    if (iframeRef.current) {
+      try {
+        const iframe = iframeRef.current;
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
         
-        // Add full HTML structure if the code doesn't include it
-        if (!code.includes('<!DOCTYPE html>') && !code.includes('<html')) {
-          iframeDoc.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body { 
-                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                  margin: 0;
-                  padding: 0;
-                }
-              </style>
-            </head>
-            <body>
-              ${code}
-            </body>
-            </html>
-          `);
-        } else {
-          iframeDoc.write(code);
-        }
-        
-        iframeDoc.close();
-        
-        // Execute JavaScript if needed
-        if (language === 'javascript') {
-          try {
+        if (iframeDoc) {
+          iframeDoc.open();
+          
+          // Add full HTML structure if the code doesn't include it
+          if (!code.includes('<!DOCTYPE html>') && !code.includes('<html')) {
+            const htmlContent = `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                  body { 
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                    margin: 0;
+                    padding: 0;
+                  }
+                </style>
+              </head>
+              <body>
+                ${code}
+                <script>
+                  // Handle console logs inside the iframe
+                  console.log = function() {
+                    window.parent.postMessage({
+                      type: 'console',
+                      args: Array.from(arguments).map(arg => 
+                        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+                      )
+                    }, '*');
+                    return window.parent.console.log.apply(console, arguments);
+                  };
+                </script>
+              </body>
+              </html>
+            `;
+            iframeDoc.write(htmlContent);
+          } else {
+            iframeDoc.write(code);
+          }
+          
+          iframeDoc.close();
+          
+          // Execute JavaScript if needed
+          if (language === 'javascript') {
             const scriptElement = iframeDoc.createElement('script');
             scriptElement.textContent = code;
             iframeDoc.body.appendChild(scriptElement);
-          } catch (error) {
-            console.error('Error executing JavaScript:', error);
           }
         }
+      } catch (error) {
+        console.error('Error updating iframe:', error);
       }
     }
   }, [code, language]);
@@ -68,6 +81,18 @@ const ResultPanel: React.FC = () => {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
   }, [output]);
+
+  // Listen for console messages from the iframe
+  useEffect(() => {
+    const handleConsoleMessages = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'console') {
+        console.log('From iframe:', ...event.data.args);
+      }
+    };
+
+    window.addEventListener('message', handleConsoleMessages);
+    return () => window.removeEventListener('message', handleConsoleMessages);
+  }, []);
 
   const getViewportWidth = () => {
     switch (viewportSize) {
@@ -146,7 +171,7 @@ const ResultPanel: React.FC = () => {
                 ref={iframeRef}
                 title="Preview"
                 className="w-full h-full border-0"
-                sandbox="allow-scripts allow-same-origin"
+                sandbox="allow-scripts allow-same-origin allow-modals"
               />
               
               {isProcessing && (
