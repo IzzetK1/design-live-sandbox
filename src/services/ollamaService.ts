@@ -1,6 +1,5 @@
 
-// This service will be used to interact with the Ollama API
-// For now, it's a placeholder that will be implemented in the future
+// This service interacts with the Ollama API
 
 export interface OllamaRequest {
   model: string;
