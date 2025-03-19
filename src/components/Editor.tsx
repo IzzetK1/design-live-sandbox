@@ -20,11 +20,11 @@ const Editor: React.FC = () => {
             <ResizableHandle withHandle />
           </>
         )}
-        <ResizablePanel defaultSize={50} minSize={30}>
+        <ResizablePanel defaultSize={isFileExplorerOpen ? 42.5 : 50} minSize={30}>
           <CodePanel />
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={50} minSize={30}>
+        <ResizablePanel defaultSize={isFileExplorerOpen ? 42.5 : 50} minSize={30}>
           <ResultPanel />
         </ResizablePanel>
       </ResizablePanelGroup>

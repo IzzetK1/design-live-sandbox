@@ -14,26 +14,50 @@ const ResultPanel: React.FC = () => {
 
   // Update iframe content
   useEffect(() => {
-    if ((language === 'html' || language === 'jsx' || language === 'tsx') && iframeRef.current) {
+    if ((language === 'html' || language === 'jsx' || language === 'tsx' || language === 'javascript') && iframeRef.current) {
       const iframe = iframeRef.current;
       const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
       
       if (iframeDoc) {
         iframeDoc.open();
-        iframeDoc.write(code);
         
-        // Inject style for preview page
-        iframeDoc.write(`
-          <style>
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-              margin: 0;
-              padding: 0;
-            }
-          </style>
-        `);
+        // Add full HTML structure if the code doesn't include it
+        if (!code.includes('<!DOCTYPE html>') && !code.includes('<html')) {
+          iframeDoc.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                body { 
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                  margin: 0;
+                  padding: 0;
+                }
+              </style>
+            </head>
+            <body>
+              ${code}
+            </body>
+            </html>
+          `);
+        } else {
+          iframeDoc.write(code);
+        }
         
         iframeDoc.close();
+        
+        // Execute JavaScript if needed
+        if (language === 'javascript') {
+          try {
+            const scriptElement = iframeDoc.createElement('script');
+            scriptElement.textContent = code;
+            iframeDoc.body.appendChild(scriptElement);
+          } catch (error) {
+            console.error('Error executing JavaScript:', error);
+          }
+        }
       }
     }
   }, [code, language]);
@@ -118,32 +142,12 @@ const ResultPanel: React.FC = () => {
           
           <div className="w-full h-[calc(100%-36px)] relative flex items-center justify-center bg-white">
             <div className={cn("h-full transition-all duration-300 ease-in-out overflow-auto", getViewportWidth())}>
-              {language === 'html' || language === 'jsx' || language === 'tsx' ? (
-                <iframe
-                  ref={iframeRef}
-                  title="Preview"
-                  className="w-full h-full border-0"
-                  sandbox="allow-scripts"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <div className="text-center p-6">
-                    <p className="text-sm text-muted-foreground mb-2">
-                      {language === 'javascript' || language === 'typescript'
-                        ? "JavaScript output will appear in the Console tab" 
-                        : "Önizleme için HTML, JSX veya TSX dosyası oluşturun"}
-                    </p>
-                    <button 
-                      className="text-xs text-primary hover:underline"
-                      onClick={() => document.querySelector('[data-value="console"]')?.dispatchEvent(
-                        new MouseEvent('click', { bubbles: true })
-                      )}
-                    >
-                      Konsola Git →
-                    </button>
-                  </div>
-                </div>
-              )}
+              <iframe
+                ref={iframeRef}
+                title="Preview"
+                className="w-full h-full border-0"
+                sandbox="allow-scripts allow-same-origin"
+              />
               
               {isProcessing && (
                 <div className="absolute inset-0 bg-background/40 backdrop-blur-sm flex items-center justify-center">
