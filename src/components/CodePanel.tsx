@@ -1,99 +1,146 @@
 
 import React, { useRef, useEffect } from 'react';
 import { useEditor } from '../context/EditorContext';
+import * as monaco from 'monaco-editor';
 import { cn } from '@/lib/utils';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
-interface CodePanelProps {
-  width: number;
-  setWidth: React.Dispatch<React.SetStateAction<number>>;
-}
-
-const CodePanel: React.FC<CodePanelProps> = ({ width, setWidth }) => {
-  const { code, setCode, language } = useEditor();
-  const resizeHandleRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+const CodePanel: React.FC = () => {
+  const { 
+    code, 
+    setCode, 
+    language,
+    activeFile,
+    openFiles,
+    closeFile,
+    setActiveFile,
+  } = useEditor();
   
-  // Handle resize functionality
+  const editorRef = useRef<HTMLDivElement>(null);
+  const monacoRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+
+  // Create or update Monaco editor
   useEffect(() => {
-    const resizeHandle = resizeHandleRef.current;
-    if (!resizeHandle) return;
+    if (editorRef.current) {
+      if (!monacoRef.current) {
+        monacoRef.current = monaco.editor.create(editorRef.current, {
+          value: code,
+          language: getMonacoLanguage(language),
+          theme: 'vs-dark',
+          automaticLayout: true,
+          minimap: {
+            enabled: false
+          },
+          scrollBeyondLastLine: false,
+          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: 14,
+          lineNumbers: 'on',
+          wordWrap: 'on',
+          tabSize: 2,
+        });
 
-    let startX = 0;
-    let startWidth = 0;
-
-    const onMouseDown = (e: MouseEvent) => {
-      startX = e.clientX;
-      startWidth = width;
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = 'ew-resize';
-      document.body.style.userSelect = 'none';
-    };
-
-    const onMouseMove = (e: MouseEvent) => {
-      const newWidth = Math.max(30, Math.min(70, startWidth + ((e.clientX - startX) / window.innerWidth * 100)));
-      setWidth(newWidth);
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    resizeHandle.addEventListener('mousedown', onMouseDown);
+        monacoRef.current.onDidChangeModelContent(() => {
+          const value = monacoRef.current?.getValue() || '';
+          setCode(value);
+        });
+      } else {
+        const model = monacoRef.current.getModel();
+        if (model) {
+          monaco.editor.setModelLanguage(model, getMonacoLanguage(language));
+        }
+        monacoRef.current.setValue(code);
+      }
+    }
 
     return () => {
-      resizeHandle.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+      if (monacoRef.current) {
+        monacoRef.current.dispose();
+      }
     };
-  }, [width, setWidth]);
+  }, [code, language, editorRef.current]);
 
-  // Adjust textarea height to fit content
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    }
-  }, [code]);
+  // Map our language codes to Monaco's language codes
+  const getMonacoLanguage = (lang: string): string => {
+    const mapping: Record<string, string> = {
+      'javascript': 'javascript',
+      'html': 'html',
+      'css': 'css',
+      'typescript': 'typescript',
+      'jsx': 'javascript',
+      'tsx': 'typescript'
+    };
+    return mapping[lang] || 'plaintext';
+  };
+
+  // Get file extension for tab display
+  const getFileExtension = (filename: string) => {
+    return filename.split('.').pop();
+  };
+
+  // Get appropriate icon for file type
+  const getFileIcon = (filename: string) => {
+    const ext = getFileExtension(filename);
+    // Return appropriate icon based on file extension
+    // For simplicity, not implemented here
+    return null;
+  };
 
   return (
-    <div 
-      className={cn(
-        "relative h-full overflow-hidden transition-all duration-300 ease-in-out",
-        "bg-editor text-editor-foreground"
+    <div className="h-full flex flex-col overflow-hidden">
+      {openFiles.length > 0 ? (
+        <Tabs 
+          value={activeFile} 
+          onValueChange={setActiveFile}
+          className="w-full h-full flex flex-col"
+        >
+          <div className="border-b flex">
+            <TabsList className="h-9 bg-transparent p-0 overflow-x-auto">
+              {openFiles.map(file => (
+                <TabsTrigger
+                  key={file}
+                  value={file}
+                  className="px-3 h-9 data-[state=active]:bg-background relative group"
+                >
+                  <div className="flex items-center gap-1.5">
+                    {getFileIcon(file)}
+                    <span className="truncate max-w-32">{file.split('/').pop()}</span>
+                  </div>
+                  <button
+                    className="h-4 w-4 rounded-full opacity-0 group-hover:opacity-100 absolute -top-1 -right-1 bg-muted text-muted-foreground hover:bg-background flex items-center justify-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeFile(file);
+                    }}
+                  >
+                    ×
+                  </button>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+
+          {openFiles.map(file => (
+            <TabsContent key={file} value={file} className="flex-grow p-0 m-0">
+              <div
+                ref={activeFile === file ? editorRef : undefined}
+                className={cn(
+                  "w-full h-full bg-editor text-editor-foreground",
+                  "font-mono text-sm leading-relaxed"
+                )}
+              />
+            </TabsContent>
+          ))}
+        </Tabs>
+      ) : (
+        <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+          <div className="max-w-xs">
+            <h3 className="text-lg font-medium mb-2">No files open</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Create a new file or open an existing one from the file explorer.
+            </p>
+          </div>
+        </div>
       )}
-      style={{ width: `${width}%` }}
-    >
-      <div className="w-full h-full p-4 overflow-auto">
-        <textarea
-          ref={textareaRef}
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          className={cn(
-            "w-full h-full resize-none outline-none",
-            "bg-transparent font-mono text-sm leading-relaxed",
-            "border-0 focus:ring-0",
-            "transition-all duration-300"
-          )}
-          style={{ 
-            tabSize: 2,
-            lineHeight: 1.5,
-            minHeight: '100%',
-          }}
-          spellCheck="false"
-          placeholder="Write your code here..."
-        />
-      </div>
-      
-      {/* Resize handle */}
-      <div 
-        ref={resizeHandleRef}
-        className="resize-handle"
-      />
     </div>
   );
 };
