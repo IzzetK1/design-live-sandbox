@@ -35,6 +35,56 @@ export const executeLocalCode = async (code: string): Promise<CodeExecutionResul
   }
 };
 
+// Şablon tabanlı kod oluşturma
+export const generateFromTemplate = async (templateName: string, customDetails: string = ""): Promise<CodeExecutionResult> => {
+  try {
+    const ollamaService = new OllamaService();
+    toast.loading("Şablondan kod oluşturuluyor...");
+    
+    const result = await ollamaService.generateFromTemplate(templateName, customDetails);
+    toast.success("Kod başarıyla oluşturuldu");
+    
+    return {
+      output: result,
+      success: true
+    };
+  } catch (error) {
+    let errorMessage = "Şablondan kod oluşturulurken bir hata oluştu";
+    
+    if (error instanceof Error) {
+      errorMessage += `: ${error.message}`;
+    }
+    
+    toast.error(errorMessage);
+    return { output: errorMessage, success: false };
+  }
+};
+
+// Test kodu oluşturma
+export const generateTestCode = async (code: string, language: string): Promise<CodeExecutionResult> => {
+  try {
+    const ollamaService = new OllamaService();
+    toast.loading("Test kodu oluşturuluyor...");
+    
+    const result = await ollamaService.generateTests(code, language);
+    toast.success("Test kodu başarıyla oluşturuldu");
+    
+    return {
+      output: result,
+      success: true
+    };
+  } catch (error) {
+    let errorMessage = "Test kodu oluşturulurken bir hata oluştu";
+    
+    if (error instanceof Error) {
+      errorMessage += `: ${error.message}`;
+    }
+    
+    toast.error(errorMessage);
+    return { output: errorMessage, success: false };
+  }
+};
+
 // Ana kod yürütme fonksiyonu
 export const executeCode = async (code: string, language: string, useOllama: boolean = false): Promise<CodeExecutionResult> => {
   if (!code.trim()) {

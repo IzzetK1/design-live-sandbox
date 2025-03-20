@@ -21,8 +21,51 @@ export interface OllamaResponse {
   done: boolean;
 }
 
+export interface ProjectTemplate {
+  name: string;
+  description: string;
+  type: 'component' | 'module' | 'application';
+  complexity: 'basic' | 'intermediate' | 'advanced';
+  tags: string[];
+  prompt: string;
+}
+
 export class OllamaService {
   private baseUrl: string = "http://localhost:11434/api";
+  private templates: ProjectTemplate[] = [
+    {
+      name: "ERP Müşteri Modülü",
+      description: "Müşteri bilgilerini yönetmek için temel CRUD işlemleri içeren modül",
+      type: "module",
+      complexity: "intermediate",
+      tags: ["erp", "crm", "müşteri"],
+      prompt: "Aşağıdaki özelliklere sahip bir müşteri yönetim modülü oluştur: \n- Müşteri listesi görüntüleme\n- Müşteri ekleme/düzenleme/silme formları\n- Müşteri detayları sayfası\n- Filtreleme ve arama özellikleri\nReact ve Typescript kullanarak, modüler ve yeniden kullanılabilir bileşenlerle oluştur."
+    },
+    {
+      name: "ERP Stok Yönetimi",
+      description: "Ürün ve stok takibi için temel CRUD işlemleri içeren modül",
+      type: "module",
+      complexity: "intermediate",
+      tags: ["erp", "stok", "ürün"],
+      prompt: "Aşağıdaki özelliklere sahip bir stok yönetim modülü oluştur: \n- Ürün listesi görüntüleme\n- Ürün ekleme/düzenleme/silme\n- Stok giriş/çıkış işlemleri\n- Stok raporu\nReact, Typescript ve Tailwind CSS kullanarak, modüler ve yeniden kullanılabilir bileşenlerle oluştur."
+    },
+    {
+      name: "Temel Tablo Bileşeni",
+      description: "Sıralama, filtreleme ve sayfalama özellikleri olan yeniden kullanılabilir tablo",
+      type: "component",
+      complexity: "basic",
+      tags: ["ui", "tablo", "bileşen"],
+      prompt: "Aşağıdaki özelliklere sahip yeniden kullanılabilir bir tablo bileşeni oluştur: \n- Dinamik sütunlar\n- Sıralama\n- Filtreleme\n- Sayfalama\n- Seçim işlevselliği\nReact, Typescript ve Tailwind CSS kullanarak modüler ve yeniden kullanılabilir bir bileşen olarak oluştur."
+    },
+    {
+      name: "Form Oluşturucu",
+      description: "Dinamik form oluşturma ve doğrulama için yeniden kullanılabilir bileşen",
+      type: "component",
+      complexity: "advanced",
+      tags: ["ui", "form", "doğrulama"],
+      prompt: "Aşağıdaki özelliklere sahip dinamik form oluşturucu bileşeni geliştir:\n- JSON şemasından form oluşturma\n- Farklı input tipleri desteği (metin, sayı, tarih, seçim, çoklu seçim)\n- Form doğrulama\n- Dinamik alan gösterme/gizleme\nReact, Typescript, Zod ve React Hook Form kullanarak modüler ve yeniden kullanılabilir bir bileşen olarak oluştur."
+    }
+  ];
 
   constructor(private baseUrlOverride?: string) {
     if (baseUrlOverride) {
@@ -171,6 +214,71 @@ Lütfen sadece yürütme sonucunu ve/veya hata mesajlarını döndür. Ekstra a�
         return `Hata: ${error.message}`;
       }
       return "Bilinmeyen bir hata oluştu";
+    }
+  }
+
+  // Metod: Şablon tabanlı kod oluşturma
+  async generateFromTemplate(templateName: string, customDetails: string = ""): Promise<string> {
+    try {
+      const template = this.templates.find(t => t.name === templateName);
+      
+      if (!template) {
+        throw new Error(`Şablon bulunamadı: ${templateName}`);
+      }
+      
+      const finalPrompt = customDetails 
+        ? `${template.prompt}\n\nEk detaylar:\n${customDetails}`
+        : template.prompt;
+      
+      // Daha karmaşık şablonlar için codellama kullan, basit şablonlar için llama3
+      const modelName = template.complexity === 'basic' ? 'llama3' : 'codellama';
+      
+      const options = {
+        temperature: template.complexity === 'advanced' ? 0.7 : 0.3,
+        top_p: 0.8
+      };
+      
+      return await this.generateCompletion(finalPrompt, modelName, options);
+    } catch (error) {
+      console.error("[Ollama Service] Error generating from template:", error);
+      if (error instanceof Error) {
+        return `Şablon oluşturma hatası: ${error.message}`;
+      }
+      return "Şablon oluşturulurken bilinmeyen bir hata oluştu";
+    }
+  }
+
+  // Metod: Mevcut tüm şablonları al
+  getTemplates(): ProjectTemplate[] {
+    return this.templates;
+  }
+
+  // Metod: Yeni bir şablon ekle
+  addTemplate(template: ProjectTemplate): void {
+    this.templates.push(template);
+  }
+
+  // Metod: Projenin kodu için test üret
+  async generateTests(code: string, language: string): Promise<string> {
+    try {
+      const testPrompt = `Aşağıdaki ${language} kodunu incele ve bu kod için unit test yazalım. Test kodu kapsamlı olmalı ve farklı durumları test etmeli (normal çalışma, sınır durumları, hata durumları):
+
+\`\`\`${language}
+${code}
+\`\`\`
+
+Jest ve React Testing Library kullanarak test kodunu yazalım. Lütfen sadece test kodunu ver, açıklama ekleme.`;
+
+      // Test üretimi için codellama modeli daha uygundur
+      return await this.generateCompletion(testPrompt, "codellama", {
+        temperature: 0.3 // Orta seviye yaratıcılık
+      });
+    } catch (error) {
+      console.error("[Ollama Service] Error generating tests:", error);
+      if (error instanceof Error) {
+        return `Test oluşturma hatası: ${error.message}`;
+      }
+      return "Test oluşturulurken bilinmeyen bir hata oluştu";
     }
   }
 }

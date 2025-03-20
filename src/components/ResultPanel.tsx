@@ -3,12 +3,13 @@ import React, { useState } from 'react';
 import { useEditor } from '../context/EditorContext';
 import OllamaAssistant from './OllamaAssistant';
 import { Button } from '@/components/ui/button';
-import { Bot, Terminal } from 'lucide-react';
+import { Bot, Terminal, Code } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import TemplateSelector from './TemplateSelector';
 
 export default function ResultPanel() {
   const { output, isProcessing } = useEditor();
-  const [view, setView] = useState<'output' | 'assistant'>('output');
+  const [view, setView] = useState<'output' | 'assistant' | 'templates'>('output');
   
   return (
     <div className="h-full flex flex-col">
@@ -37,6 +38,18 @@ export default function ResultPanel() {
           <Bot className="h-4 w-4 mr-2" />
           Kod Asistanı
         </Button>
+        <Button
+          variant="ghost" 
+          size="sm"
+          className={cn(
+            "rounded-none border-b-2 border-transparent",
+            view === 'templates' && "border-primary"
+          )}
+          onClick={() => setView('templates')}
+        >
+          <Code className="h-4 w-4 mr-2" />
+          Şablonlar
+        </Button>
       </div>
       
       {view === 'output' ? (
@@ -51,8 +64,10 @@ export default function ResultPanel() {
             </div>
           )}
         </div>
-      ) : (
+      ) : view === 'assistant' ? (
         <OllamaAssistant />
+      ) : (
+        <TemplateSelector />
       )}
     </div>
   );

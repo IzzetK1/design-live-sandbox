@@ -1,10 +1,9 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from "sonner";
 import { useFileSystem, FileStructure } from '../hooks/useFileSystem';
-import { executeCode } from '../services/codeExecutionService';
+import { executeCode, generateFromTemplate, generateTestCode } from '../services/codeExecutionService';
 import { useTheme, ThemeMode } from '../hooks/useTheme';
-import OllamaService from '../services/ollamaService';
+import OllamaService, { ProjectTemplate } from '../services/ollamaService';
 
 interface EditorContextProps {
   code: string;
@@ -43,6 +42,9 @@ interface EditorContextProps {
   ollamaBaseUrl: string;
   setOllamaBaseUrl: React.Dispatch<React.SetStateAction<string>>;
   askOllama: (prompt: string) => Promise<string>;
+  generateFromTemplate: (templateName: string, customDetails?: string) => Promise<string>;
+  generateTestCode: (code: string) => Promise<string>;
+  availableTemplates: ProjectTemplate[];
 }
 
 const defaultCode = `
@@ -108,12 +110,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [apiKey, setApiKey] = useState<string>('');
   const [language, setLanguage] = useState<string>('html');
   
-  // Ollama ile ilgili state'ler
   const [useOllama, setUseOllama] = useState<boolean>(false);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('llama3');
   const [isOllamaConnected, setIsOllamaConnected] = useState<boolean>(false);
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState<string>('http://localhost:11434/api');
+  const [availableTemplates, setAvailableTemplates] = useState<ProjectTemplate[]>([]);
   
   const { theme, toggleTheme } = useTheme();
   
@@ -139,7 +141,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     if (savedSelectedModel) setSelectedModel(savedSelectedModel);
     if (savedOllamaBaseUrl) setOllamaBaseUrl(savedOllamaBaseUrl);
     
-    // Ollama'ya bağlan
     if (savedUseOllama === 'true') {
       connectToOllama();
     }
@@ -149,7 +150,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('code', code);
     localStorage.setItem('language', language);
     
-    // Eğer aktif bir dosya varsa, içeriği o dosyaya kaydet
     if (fileSystem.activeFile) {
       fileSystem.saveFileContent(fileSystem.activeFile, code);
     }
@@ -205,7 +205,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       if (models.length > 0) {
         setOllamaModels(models);
         
-        // Eğer seçili model mevcut değilse, ilk modeli kullan
         if (!models.includes(selectedModel)) {
           setSelectedModel(models[0]);
           localStorage.setItem('selectedModel', models[0]);
@@ -214,6 +213,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         setIsOllamaConnected(true);
         localStorage.setItem('ollamaBaseUrl', ollamaBaseUrl);
         toast.success("Ollama'ya başarıyla bağlandı");
+        
+        const templates = ollamaService.getTemplates();
+        setAvailableTemplates(templates);
       } else {
         toast.error("Ollama'da hiç model bulunamadı");
       }
@@ -252,6 +254,56 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       return errorMessage;
     }
   };
+  
+  const handleGenerateFromTemplate = async (templateName: string, customDetails: string = ""): Promise<string> => {
+    if (!isOllamaConnected) {
+      toast.error("Önce Ollama'ya bağlanmalısınız");
+      return "Önce Ollama'ya bağlanmalısınız";
+    }
+    
+    setIsProcessing(true);
+    try {
+      const result = await generateFromTemplate(templateName, customDetails);
+      setOutput(result.output);
+      return result.output;
+    } catch (error) {
+      let errorMessage = "Şablondan kod oluşturulurken bir hata oluştu";
+      
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      
+      setOutput(errorMessage);
+      return errorMessage;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  const handleGenerateTestCode = async (codeToTest: string): Promise<string> => {
+    if (!isOllamaConnected) {
+      toast.error("Önce Ollama'ya bağlanmalısınız");
+      return "Önce Ollama'ya bağlanmalısınız";
+    }
+    
+    setIsProcessing(true);
+    try {
+      const result = await generateTestCode(codeToTest, language);
+      setOutput(result.output);
+      return result.output;
+    } catch (error) {
+      let errorMessage = "Test kodu oluşturulurken bir hata oluştu";
+      
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      
+      setOutput(errorMessage);
+      return errorMessage;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <EditorContext.Provider
@@ -279,6 +331,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         ollamaBaseUrl,
         setOllamaBaseUrl,
         askOllama,
+        generateFromTemplate: handleGenerateFromTemplate,
+        generateTestCode: handleGenerateTestCode,
+        availableTemplates,
         ...fileSystem
       }}
     >
