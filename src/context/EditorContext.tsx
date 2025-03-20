@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useFileSystem, FileStructure } from '../hooks/useFileSystem';
 import { executeCode } from '../services/codeExecutionService';
 import { useTheme, ThemeMode } from '../hooks/useTheme';
+import OllamaService from '../services/ollamaService';
 
 interface EditorContextProps {
   code: string;
@@ -32,6 +33,16 @@ interface EditorContextProps {
   toggleFileExplorer: () => void;
   projectName: string;
   updateProjectName: (name: string) => void;
+  useOllama: boolean;
+  toggleOllamaMode: () => void;
+  ollamaModels: string[];
+  selectedModel: string;
+  setSelectedModel: React.Dispatch<React.SetStateAction<string>>;
+  isOllamaConnected: boolean;
+  connectToOllama: () => Promise<void>;
+  ollamaBaseUrl: string;
+  setOllamaBaseUrl: React.Dispatch<React.SetStateAction<string>>;
+  askOllama: (prompt: string) => Promise<string>;
 }
 
 const defaultCode = `
@@ -97,6 +108,13 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [apiKey, setApiKey] = useState<string>('');
   const [language, setLanguage] = useState<string>('html');
   
+  // Ollama ile ilgili state'ler
+  const [useOllama, setUseOllama] = useState<boolean>(false);
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('llama3');
+  const [isOllamaConnected, setIsOllamaConnected] = useState<boolean>(false);
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState<string>('http://localhost:11434/api');
+  
   const { theme, toggleTheme } = useTheme();
   
   const handleFileContentChange = (content: string, lang: string) => {
@@ -110,17 +128,28 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     const savedCode = localStorage.getItem('code');
     const savedApiKey = localStorage.getItem('apiKey');
     const savedLanguage = localStorage.getItem('language');
+    const savedUseOllama = localStorage.getItem('useOllama');
+    const savedSelectedModel = localStorage.getItem('selectedModel');
+    const savedOllamaBaseUrl = localStorage.getItem('ollamaBaseUrl');
     
     if (savedCode) setCode(savedCode);
     if (savedApiKey) setApiKey(savedApiKey);
     if (savedLanguage) setLanguage(savedLanguage);
+    if (savedUseOllama) setUseOllama(savedUseOllama === 'true');
+    if (savedSelectedModel) setSelectedModel(savedSelectedModel);
+    if (savedOllamaBaseUrl) setOllamaBaseUrl(savedOllamaBaseUrl);
+    
+    // Ollama'ya bağlan
+    if (savedUseOllama === 'true') {
+      connectToOllama();
+    }
   }, []);
 
   const saveCode = () => {
     localStorage.setItem('code', code);
     localStorage.setItem('language', language);
     
-    // If we have an active file, save the content to that file
+    // Eğer aktif bir dosya varsa, içeriği o dosyaya kaydet
     if (fileSystem.activeFile) {
       fileSystem.saveFileContent(fileSystem.activeFile, code);
     }
@@ -140,9 +169,88 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
   const runCode = async () => {
     setIsProcessing(true);
-    const result = await executeCode(code, language);
-    setOutput(result.output);
-    setIsProcessing(false);
+    setOutput('');
+    try {
+      const result = await executeCode(code, language, useOllama);
+      setOutput(result.output);
+    } catch (error) {
+      if (error instanceof Error) {
+        setOutput(`Hata: ${error.message}`);
+      } else {
+        setOutput("Bilinmeyen bir hata oluştu");
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  const toggleOllamaMode = () => {
+    const newMode = !useOllama;
+    setUseOllama(newMode);
+    localStorage.setItem('useOllama', String(newMode));
+    
+    if (newMode && !isOllamaConnected) {
+      connectToOllama();
+    }
+  };
+  
+  const connectToOllama = async () => {
+    try {
+      setIsOllamaConnected(false);
+      const ollamaService = new OllamaService(ollamaBaseUrl);
+      
+      toast.loading("Ollama'ya bağlanılıyor...");
+      const models = await ollamaService.getModels();
+      
+      if (models.length > 0) {
+        setOllamaModels(models);
+        
+        // Eğer seçili model mevcut değilse, ilk modeli kullan
+        if (!models.includes(selectedModel)) {
+          setSelectedModel(models[0]);
+          localStorage.setItem('selectedModel', models[0]);
+        }
+        
+        setIsOllamaConnected(true);
+        localStorage.setItem('ollamaBaseUrl', ollamaBaseUrl);
+        toast.success("Ollama'ya başarıyla bağlandı");
+      } else {
+        toast.error("Ollama'da hiç model bulunamadı");
+      }
+    } catch (error) {
+      let errorMessage = "Ollama'ya bağlanırken bir hata oluştu";
+      
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      
+      toast.error(errorMessage);
+      console.error("Ollama connection error:", error);
+    }
+  };
+  
+  const askOllama = async (prompt: string): Promise<string> => {
+    if (!isOllamaConnected) {
+      toast.error("Önce Ollama'ya bağlanmalısınız");
+      return "Önce Ollama'ya bağlanmalısınız";
+    }
+    
+    try {
+      toast.loading("Ollama'ya soruldu, yanıt bekleniyor...");
+      const ollamaService = new OllamaService(ollamaBaseUrl);
+      const response = await ollamaService.generateCompletion(prompt, selectedModel);
+      toast.success("Ollama yanıt verdi");
+      return response;
+    } catch (error) {
+      let errorMessage = "Ollama'dan yanıt alınırken bir hata oluştu";
+      
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      
+      toast.error(errorMessage);
+      return errorMessage;
+    }
   };
 
   return (
@@ -161,6 +269,16 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         toggleTheme,
         saveCode,
         loadCode,
+        useOllama,
+        toggleOllamaMode,
+        ollamaModels,
+        selectedModel,
+        setSelectedModel,
+        isOllamaConnected,
+        connectToOllama,
+        ollamaBaseUrl,
+        setOllamaBaseUrl,
+        askOllama,
         ...fileSystem
       }}
     >

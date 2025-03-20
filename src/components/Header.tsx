@@ -14,7 +14,7 @@ import {
   Play, Save, Moon, Sun, Settings, 
   Code, FileCode, RotateCcw, Coffee,
   ChevronRight, FolderTree, Download,
-  Share, Github, Menu
+  Share, Github, Menu, Bot, Link, CloudOff
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -23,6 +23,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 const Header: React.FC = () => {
   const { 
@@ -38,9 +47,20 @@ const Header: React.FC = () => {
     toggleFileExplorer,
     isFileExplorerOpen,
     projectName,
-    updateProjectName
+    updateProjectName,
+    useOllama,
+    toggleOllamaMode,
+    ollamaModels,
+    selectedModel,
+    setSelectedModel,
+    isOllamaConnected,
+    connectToOllama,
+    ollamaBaseUrl,
+    setOllamaBaseUrl,
   } = useEditor();
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isOllamaSettingsOpen, setIsOllamaSettingsOpen] = useState(false);
   const [editingProjectName, setEditingProjectName] = useState(false);
   const [tempProjectName, setTempProjectName] = useState(projectName);
 
@@ -134,6 +154,29 @@ const Header: React.FC = () => {
 
         {/* Right controls */}
         <div className="flex items-center gap-2">
+          {/* Ollama Bağlantı Durumu */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsOllamaSettingsOpen(true)}
+            className={cn(
+              "text-xs flex items-center gap-1",
+              isOllamaConnected ? "border-green-500" : "border-orange-500"
+            )}
+          >
+            {isOllamaConnected ? (
+              <>
+                <Bot className="h-3.5 w-3.5 text-green-500" />
+                <span className="hidden sm:inline">Ollama: Bağlı</span>
+              </>
+            ) : (
+              <>
+                <CloudOff className="h-3.5 w-3.5 text-orange-500" />
+                <span className="hidden sm:inline">Ollama: Bağlantı Yok</span>
+              </>
+            )}
+          </Button>
+
           <Button 
             variant="outline" 
             size="sm" 
@@ -192,6 +235,10 @@ const Header: React.FC = () => {
                 <Settings className="h-4 w-4 mr-2" />
                 Ayarlar
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsOllamaSettingsOpen(true)}>
+                <Bot className="h-4 w-4 mr-2" />
+                Ollama Ayarları
+              </DropdownMenuItem>
               <DropdownMenuItem>
                 <Download className="h-4 w-4 mr-2" />
                 Projeyi İndir
@@ -207,6 +254,7 @@ const Header: React.FC = () => {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Ana Ayarlar Dialog */}
           <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
@@ -239,6 +287,95 @@ const Header: React.FC = () => {
                   }}
                 >
                   Ayarları Kaydet
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Ollama Ayarları Dialog */}
+          <Dialog open={isOllamaSettingsOpen} onOpenChange={setIsOllamaSettingsOpen}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Ollama Bağlantı Ayarları</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-6 py-4">
+                {/* Ollama Modu */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="ollama-mode" className="text-base">Ollama Modu</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Kod çalıştırmak için Ollama'yı kullan
+                    </p>
+                  </div>
+                  <Switch
+                    id="ollama-mode"
+                    checked={useOllama}
+                    onCheckedChange={toggleOllamaMode}
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  {/* Ollama API URL */}
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="ollama-url" className="text-right">
+                      Ollama API URL
+                    </Label>
+                    <div className="col-span-3">
+                      <Input
+                        id="ollama-url"
+                        placeholder="http://localhost:11434/api"
+                        value={ollamaBaseUrl}
+                        onChange={(e) => setOllamaBaseUrl(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Ollama API'nin çalıştığı URL (varsayılan: http://localhost:11434/api)
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Model Seçimi */}
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="model-select" className="text-right">
+                      Model
+                    </Label>
+                    <div className="col-span-3">
+                      {ollamaModels.length > 0 ? (
+                        <Select value={selectedModel} onValueChange={setSelectedModel}>
+                          <SelectTrigger id="model-select">
+                            <SelectValue placeholder="Model seçin" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ollamaModels.map(model => (
+                              <SelectItem key={model} value={model}>
+                                {model}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">
+                          Henüz model listesi yok. Bağlantıyı test edin.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bağlantı Test Butonu */}
+                  <div className="flex justify-end mt-4">
+                    <Button 
+                      onClick={connectToOllama}
+                      className="flex items-center gap-2"
+                    >
+                      <Link className="h-4 w-4" />
+                      Bağlantıyı Test Et
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-end">
+                <Button onClick={() => setIsOllamaSettingsOpen(false)}>
+                  Kapat
                 </Button>
               </div>
             </DialogContent>
