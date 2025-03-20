@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, Code, Component, FileCode, Loader2, Package, Store, Users } from 'lucide-react';
 import { ProjectTemplate } from '../services/ollamaService';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 const TemplateSelector: React.FC = () => {
   const { isOllamaConnected, askOllama, setCode, language, setLanguage } = useEditor();

@@ -9,6 +9,7 @@ import { Bot, Send, Loader2, Copy, Check, Code, FileCode, Command, Settings2 } f
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { 
   Select, 
   SelectContent, 
